@@ -2,58 +2,13 @@ package de.jcm.discordgamesdk.activity;
 
 import de.jcm.discordgamesdk.user.Presence;
 
-import java.lang.ref.PhantomReference;
-import java.lang.ref.ReferenceQueue;
-import java.util.ArrayList;
 
 /**
  * Java representation of the Activity structure.
  * @see <a href="https://discordapp.com/developers/docs/game-sdk/activities#data-models-activity-struct">
  *     https://discordapp.com/developers/docs/game-sdk/activities#data-models-activity-struct</a>
  */
-public class Activity implements AutoCloseable
-{
-	/*
-	This seems to work for freeing allocated native space of Activity,
-	but I'm somehow sure this is REALLY wrong.
-	 */
-	private static final ReferenceQueue<Activity> QUEUE = new ReferenceQueue<>();
-	private static final ArrayList<ActivityReference> REFERENCES = new ArrayList<>();
-	private static final Thread QUEUE_THREAD = new Thread(()->{
-		while(true)
-		{
-			try
-			{
-				ActivityReference reference = (ActivityReference) QUEUE.remove();
-				free(reference.pointer);
-				REFERENCES.remove(reference);
-			}
-			catch(InterruptedException e)
-			{
-				e.printStackTrace();
-			}
-		}
-	}, "Activity-Cleaner");
-	static
-	{
-		QUEUE_THREAD.start();
-	}
-
-	private static class ActivityReference extends PhantomReference<Activity>
-	{
-		private final long pointer;
-
-		public ActivityReference(Activity referent, ReferenceQueue<? super Activity> q)
-		{
-			super(referent, q);
-			this.pointer = referent.pointer;
-		}
-
-		public long getPointer()
-		{
-			return pointer;
-		}
-	}
+public class Activity implements AutoCloseable {
 
 	private final long pointer;
 
@@ -73,11 +28,6 @@ public class Activity implements AutoCloseable
 		this.assets = new ActivityAssets(getAssets(pointer));
 		this.party = new ActivityParty(getParty(pointer));
 		this.secrets = new ActivitySecrets(getSecrets(pointer));
-
-		/*
-		 * This constructor is only invoked from people using this library, not from the library itself.
-		 * So, I don't think it's our job to clean up their closeables.
-		 */
 	}
 
 	/**
@@ -93,14 +43,6 @@ public class Activity implements AutoCloseable
 		this.assets = new ActivityAssets(getAssets(pointer));
 		this.party = new ActivityParty(getParty(pointer));
 		this.secrets = new ActivitySecrets(getSecrets(pointer));
-
-		/*
-		 * This constructor is ideally never invoked by users.
-		 * Only the library uses it to wrap existing activity objects.
-		 * So, it's our job to clean the allocated space.
-		 */
-		ActivityReference reference = new ActivityReference(this, QUEUE);
-		REFERENCES.add(reference);
 	}
 
 	/**
@@ -279,8 +221,10 @@ public class Activity implements AutoCloseable
 	 * <p>You should call this when you do not need the structure anymore.</p>
 	 */
 	@Override
-	public void close()
-	{
+	public void close() {}
+
+	@Override
+	protected void finalize() throws Throwable {
 		free(pointer);
 	}
 
